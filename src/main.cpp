@@ -14,11 +14,17 @@
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <LittleFS.h>
-
+#include <driver/i2s.h>
 #include "Util.h"
+#include <Audio.h>
 
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
+
+#define I2S_DOUT 22
+#define I2S_BCLK 26
+#define I2S_LRC 25
+// CONFIGURE THESE VALUES!
 
 struct OrientationMinuteMappings
 {
@@ -49,6 +55,7 @@ TaskHandle_t tNetwork;
 TaskHandle_t tTimer;
 
 Preferences preferences;
+Audio audio;
 
 const char *SSID = "POMODORMO";
 const char *PASSWORD = "POMODORMO";
@@ -92,6 +99,10 @@ void tfDisplay(void *params)
   display.setTextSize(1);
   display.setTextColor(WHITE);
   display.setCursor(0, 10);
+
+  audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
+  audio.setVolume(17);
+  audio.connecttoFS(LittleFS, "/alarm.wav");
   int prevDisplayTime;
   while (true)
   {
@@ -270,6 +281,7 @@ void onRequest(AsyncWebServerRequest *request)
 
 void tfNetwork(void *params)
 {
+  LittleFS.begin(true);
   WiFi.mode(WIFI_STA);
   WiFi.begin(SSID, PASSWORD);
   server.onNotFound(onRequest);
@@ -285,7 +297,7 @@ void tfNetwork(void *params)
 void setup()
 {
   Serial.begin(112500);
-  setCpuFrequencyMhz(240);
+  setCpuFrequencyMhz(80); /// TODO: implement better power-saving methods.
   // get default minute mappings
   preferences.begin("config", false);
   minutes = OrientationMinuteMappings{
