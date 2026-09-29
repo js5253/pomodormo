@@ -5,11 +5,17 @@
 volatile AppState globalState = AppState::INIT;
 SemaphoreHandle_t mGlobalState;
 
-AppState get_system_state(void) {
+AppState getSystemState(void) {
     AppState state;
     if (xSemaphoreTake(mGlobalState, portMAX_DELAY) == pdTRUE) {
         state = globalState;
         xSemaphoreGive(mGlobalState);
     }
     return state;
+}
+void setSystemState(AppState state) {
+    if (xSemaphoreTake(mGlobalState, portMAX_DELAY) == pdTRUE) {
+        globalState = state;
+        xSemaphoreGive(mGlobalState);
+    }
 }

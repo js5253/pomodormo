@@ -70,10 +70,17 @@ timer_config_t config = {
     .divider = 2, // CHANGEME
 };
 
-void ARDUINO_ISR_ATTR onTimer() {
+void ARDUINO_ISR_ATTR onTimer()
+{
   xSemaphoreTake(mElapsedTime, portMAX_DELAY);
   --timeElapsed;
   xSemaphoreGive(mElapsedTime);
+}
+void ARDUINO_ISR_ATTR makeIdle()
+{
+  xSemaphoreTake(mGlobalState, portMAX_DELAY);
+  setSystemState(AppState::IDLE);
+  xSemaphoreGive(mGlobalState);
 }
 
 void tfDisplay(void *params)
@@ -144,7 +151,7 @@ void tfIMU(void *params)
     {
     case INIT:
       // do something
-      break;
+    [[fallthrough]]
     case WORKING:
     [[fallthrough]]
     case IDLE:
@@ -155,17 +162,21 @@ void tfIMU(void *params)
       {
         int degree = gyro->gyro.roll;
         /// FIXME: add correct gyro and degree ratings
+        GyroMessageType msg = GyroMessageType::CYCLE_FLIPPED_NORMAL;
         if (degree < 90)
         {
+          msg = GyroMessageType::CYCLE_FLIPPED_CLOCK;
         }
         else if (
             degree < 0)
         {
+          msg = GyroMessageType::CYCLE_FLIPPED_COUNT;
         }
         else if (degree < 90)
         {
+          msg = GyroMessageType::CYCLE_FLIPPED_INV;
         }
-        xQueueSend(qOrientationChange, (void *)new GyroMessage{.msg = GyroMessageType::CYCLE_FLIPPED_NORMAL}, 0);
+        xQueueSend(qOrientationChange, (void *)new GyroMessage{.msg = msg}, 0);
       }
       break;
     }
@@ -179,24 +190,25 @@ void tfTimer(void *params)
   while (true)
   {
     AppState state = get_system_state();
-    xSemaphoreTake(mLeftTime, 0);
-    if (xQueueReceive(qOrientationChange, &(messageEvent), (TickType_t)10) == pdPASS)
+    if (xQueueReceive(qOrientationChange, &(messageEvent), portMAX_DELAY) == pdPASS)
     {
       // reset timer
-      switch(messageEvent->msg) {
-        case CYCLE_FLIPPED_NORMAL:
+      switch (messageEvent->msg)
+      {
+      case CYCLE_FLIPPED_NORMAL:
         timeLeft = minutes.normal;
         break;
-        case CYCLE_FLIPPED_COUNT:
+      case CYCLE_FLIPPED_COUNT:
         timeLeft = minutes.count_90;
         break;
-        case CYCLE_FLIPPED_INV:
+      case CYCLE_FLIPPED_INV:
         timeLeft = minutes.inverted;
         break;
-        case CYCLE_FLIPPED_CLOCK:
+      case CYCLE_FLIPPED_CLOCK:
         timeLeft = minutes.clock_90;
         break;
       }
+      xSemaphoreTake(mLeftTime, 0);
       state = AppState::WORKING;
       printf("Time Change!");
       myTimer = timerBegin(1000000, 2, false);
@@ -216,23 +228,30 @@ void tfTimer(void *params)
     case IDLE:
       break;
     case WORKING:
-      if (timeElapsed == 0)
+      if (timeLeft == 0)
       {
+        timerStop(myTimer);
+        timerStart(myTimer);
         state = BREAKING;
       }
       break;
     case BREAKING:
-      if (timeElapsed == 0)
+      if (timeLeft == 0)
       {
-        state = IDLE;
+        timerStop(myTimer);
+        state = FINISHED;
       }
       break;
 
     case FINISHED:
-    // here, make an alarm later on
+      timerAttachInterrupt(myTimer, &makeIdle, false);
+      timerAlarmWrite(myTimer, 1000000, true);
+      timerStart(myTimer);
+
+      // here, make an alarm later on
       break;
     }
-      xSemaphoreGive(mLeftTime);
+    xSemaphoreGive(mLeftTime);
 
     vTaskDelay(pdMS_TO_TICKS(100));
   }
