@@ -1,5 +1,4 @@
 #pragma once
-
 enum AppState
 {
   INIT,
@@ -9,10 +8,10 @@ enum AppState
   FINISHED
 };
 // #include <concepts>
-AppState get_system_state(void);
+AppState getSystemState(void);
 void setSystemState(AppState state);
-template <typename T>
-concept IsFreeRTOSTask = requires (T x) {
+// enable this when we make this use C++ more
+// template <typename T>
+// concept IsFreeRTOSTask = requires (T x) {
     // here is where we add things
-    {} -> std::
-};
+// };

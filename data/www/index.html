@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PomoConfig</title>
+</head>
+
+<body>
+    <h1>Configure your Pomodormo</h1>
+    <form method="/" action="POST">
+        <label for="counterTime">Counterclockwise 90 degrees: </label>
+        <input type="number" name="counterTime" />
+        <label for="normalTime">Normal: </label>
+        <input type="number" name="normalTime" />
+        <label for="clockTime">Clockwise: </label>
+        <input type="number" name="clockTime" />
+        <label for="invertTime">Flipped: </label>
+        <input type="number" name="invertTime" />
+    </form>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.min.js"
+        integrity="sha384-2OatzQy1H+Zd/IIrjr1TcuDGqLXeHhbooAyJY1KdQMKnr4LZ22k31GBLdYKHmVjg"
+        crossorigin="anonymous"></script>
+      have a button POST a click via AJAX 
+    <button hx-post="/clicked" hx-swap="outerHTML">
+        Click Me
+    </button> -->
+</body>
+
+</html>

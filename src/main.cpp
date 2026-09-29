@@ -3,13 +3,18 @@
 #include <Adafruit_Sensor.h>
 #include <Wire.h>
 #include <optional>
-#include "driver/timer.h"
+#include <driver/timer.h>
 #include <Preferences.h>
 #include <memory>
 #include <freertos/FreeRTOS.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <WiFi.h>
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+#include <LittleFS.h>
+
 #include "Util.h"
 
 #define SCREEN_WIDTH 128
@@ -33,9 +38,10 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 SemaphoreHandle_t mElapsedTime = xSemaphoreCreateMutex();
 SemaphoreHandle_t mLeftTime = xSemaphoreCreateMutex();
-SemaphoreHandle_t mGlobalState = xSemaphoreCreateMutex();
 
 hw_timer_t *myTimer = NULL;
+
+AsyncWebServer server(80);
 
 TaskHandle_t tDisplay;
 TaskHandle_t tIMU;
@@ -43,6 +49,9 @@ TaskHandle_t tNetwork;
 TaskHandle_t tTimer;
 
 Preferences preferences;
+
+const char *SSID = "POMODORMO";
+const char *PASSWORD = "POMODORMO";
 
 enum GyroMessageType
 {
@@ -63,24 +72,18 @@ OrientationMinuteMappings minutes = {
     .clock_90 = 55,
 };
 
-timer_config_t config = {
-    .alarm_en = TIMER_ALARM_EN,
-    .counter_en = TIMER_PAUSE,
-    .intr_type = TIMER_INTR_LEVEL,
-    .divider = 2, // CHANGEME
-};
-
 void ARDUINO_ISR_ATTR onTimer()
 {
+  xSemaphoreTake(mLeftTime, portMAX_DELAY);
   xSemaphoreTake(mElapsedTime, portMAX_DELAY);
-  --timeElapsed;
+  --timeLeft;
+  ++timeElapsed;
   xSemaphoreGive(mElapsedTime);
+  xSemaphoreGive(mLeftTime);
 }
 void ARDUINO_ISR_ATTR makeIdle()
 {
-  xSemaphoreTake(mGlobalState, portMAX_DELAY);
   setSystemState(AppState::IDLE);
-  xSemaphoreGive(mGlobalState);
 }
 
 void tfDisplay(void *params)
@@ -92,7 +95,7 @@ void tfDisplay(void *params)
   int prevDisplayTime;
   while (true)
   {
-    AppState state = get_system_state();
+    AppState state = getSystemState();
     switch (state)
     {
     case INIT:
@@ -103,7 +106,7 @@ void tfDisplay(void *params)
       if (prevDisplayTime != timeElapsed)
       {
         display.clearDisplay();
-        display.printf("Elapsed: %d", mElapsedTime);
+        display.printf("WORKING: %d", mElapsedTime);
       }
       prevDisplayTime = timeElapsed;
       xSemaphoreGive(mElapsedTime);
@@ -114,14 +117,14 @@ void tfDisplay(void *params)
       if (prevDisplayTime != timeElapsed)
       {
         display.clearDisplay();
-        display.printf("Elapsed: %d", mElapsedTime);
+        display.printf("BREAK: %d", mElapsedTime);
       }
       prevDisplayTime = timeElapsed;
       xSemaphoreGive(mElapsedTime);
       break;
     case FINISHED:
       display.clearDisplay();
-      display.printf("FINISHED TIMER!");
+      display.printf("TIME!");
       break;
     case IDLE:
       // do something?
@@ -143,10 +146,11 @@ void tfIMU(void *params)
 
   mpu.setGyroRange(MPU6050_RANGE_1000_DEG);
   mpu.setAccelerometerStandby(true, true, true);
+  mpu.setTemperatureStandby(true);
 
   while (true)
   {
-    AppState state = get_system_state();
+    AppState state = getSystemState();
     switch (state)
     {
     case INIT:
@@ -189,10 +193,12 @@ void tfTimer(void *params)
   GyroMessage *messageEvent;
   while (true)
   {
-    AppState state = get_system_state();
+    AppState state = getSystemState();
+    xSemaphoreTake(mLeftTime, portMAX_DELAY);
     if (xQueueReceive(qOrientationChange, &(messageEvent), portMAX_DELAY) == pdPASS)
     {
       // reset timer
+
       switch (messageEvent->msg)
       {
       case CYCLE_FLIPPED_NORMAL:
@@ -211,14 +217,13 @@ void tfTimer(void *params)
       xSemaphoreTake(mLeftTime, 0);
       state = AppState::WORKING;
       printf("Time Change!");
-      myTimer = timerBegin(1000000, 2, false);
+      myTimer = timerBegin(TIMER_0, 2, false); /// FIXME: check if this is an appropriate prescaler value
       timerAttachInterrupt(myTimer, &onTimer, false);
       timerAlarmWrite(myTimer, 1000000, true);
       timerStart(myTimer);
 
       xSemaphoreTake(mElapsedTime, portMAX_DELAY);
       timeElapsed = 0;
-      xSemaphoreTake(mLeftTime, portMAX_DELAY);
       delete messageEvent;
     };
     switch (state)
@@ -256,8 +261,21 @@ void tfTimer(void *params)
     vTaskDelay(pdMS_TO_TICKS(100));
   }
 }
+
+void onRequest(AsyncWebServerRequest *request)
+{
+  // Handle Unknown Request
+  request->send(404);
+}
+
 void tfNetwork(void *params)
 {
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(SSID, PASSWORD);
+  server.onNotFound(onRequest);
+  server.serveStatic("/page.htm", LittleFS, "/www/index.html").setDefaultFile("/www/index.html");
+  server.begin();
+  /// TODO: check that AsyncWebServer works well this way/under FreeRTOS
   while (true)
   {
     vTaskDelay(pdMS_TO_TICKS(100));
