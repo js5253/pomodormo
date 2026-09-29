@@ -11,6 +11,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include "Util.h"
+
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
 
@@ -23,6 +24,7 @@ struct OrientationMinuteMappings
 };
 
 volatile int timeElapsed = 0;
+volatile int timeLeft = 0;
 
 QueueHandle_t qOrientationChange;
 
@@ -30,7 +32,10 @@ Adafruit_MPU6050 mpu;
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 SemaphoreHandle_t mElapsedTime = xSemaphoreCreateMutex();
+SemaphoreHandle_t mLeftTime = xSemaphoreCreateMutex();
 SemaphoreHandle_t mGlobalState = xSemaphoreCreateMutex();
+
+hw_timer_t *myTimer = NULL;
 
 TaskHandle_t tDisplay;
 TaskHandle_t tIMU;
@@ -41,7 +46,10 @@ Preferences preferences;
 
 enum GyroMessageType
 {
-  CYCLE_FLIPPED
+  CYCLE_FLIPPED_NORMAL,
+  CYCLE_FLIPPED_COUNT,
+  CYCLE_FLIPPED_INV,
+  CYCLE_FLIPPED_CLOCK
 };
 struct GyroMessage
 {
@@ -61,6 +69,12 @@ timer_config_t config = {
     .intr_type = TIMER_INTR_LEVEL,
     .divider = 2, // CHANGEME
 };
+
+void ARDUINO_ISR_ATTR onTimer() {
+  xSemaphoreTake(mElapsedTime, portMAX_DELAY);
+  --timeElapsed;
+  xSemaphoreGive(mElapsedTime);
+}
 
 void tfDisplay(void *params)
 {
@@ -132,7 +146,9 @@ void tfIMU(void *params)
       // do something
       break;
     case WORKING:
+    [[fallthrough]]
     case IDLE:
+    [[fallthrough]]
     case BREAKING:
       mpu.getEvent(accel, gyro, temp);
       if (prevGyro != gyro)
@@ -149,29 +165,48 @@ void tfIMU(void *params)
         else if (degree < 90)
         {
         }
-        xQueueSend(qOrientationChange, (void *)new GyroMessage{.msg = GyroMessageType::CYCLE_FLIPPED}, 0);
+        xQueueSend(qOrientationChange, (void *)new GyroMessage{.msg = GyroMessageType::CYCLE_FLIPPED_NORMAL}, 0);
       }
       break;
     }
     vTaskDelay(pdMS_TO_TICKS(100));
   }
 }
-void resetTimer()
-{
-}
+
 void tfTimer(void *params)
 {
   GyroMessage *messageEvent;
   while (true)
   {
     AppState state = get_system_state();
+    xSemaphoreTake(mLeftTime, 0);
     if (xQueueReceive(qOrientationChange, &(messageEvent), (TickType_t)10) == pdPASS)
     {
+      // reset timer
+      switch(messageEvent->msg) {
+        case CYCLE_FLIPPED_NORMAL:
+        timeLeft = minutes.normal;
+        break;
+        case CYCLE_FLIPPED_COUNT:
+        timeLeft = minutes.count_90;
+        break;
+        case CYCLE_FLIPPED_INV:
+        timeLeft = minutes.inverted;
+        break;
+        case CYCLE_FLIPPED_CLOCK:
+        timeLeft = minutes.clock_90;
+        break;
+      }
       state = AppState::WORKING;
       printf("Time Change!");
-      xSemaphoreTake(mElapsedTime, 0);
+      myTimer = timerBegin(1000000, 2, false);
+      timerAttachInterrupt(myTimer, &onTimer, false);
+      timerAlarmWrite(myTimer, 1000000, true);
+      timerStart(myTimer);
+
+      xSemaphoreTake(mElapsedTime, portMAX_DELAY);
       timeElapsed = 0;
-      xSemaphoreGive(mElapsedTime);
+      xSemaphoreTake(mLeftTime, portMAX_DELAY);
       delete messageEvent;
     };
     switch (state)
@@ -194,8 +229,10 @@ void tfTimer(void *params)
       break;
 
     case FINISHED:
+    // here, make an alarm later on
       break;
     }
+      xSemaphoreGive(mLeftTime);
 
     vTaskDelay(pdMS_TO_TICKS(100));
   }
