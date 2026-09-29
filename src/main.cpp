@@ -42,8 +42,8 @@ QueueHandle_t qOrientationChange;
 Adafruit_MPU6050 mpu;
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
-SemaphoreHandle_t mElapsedTime = xSemaphoreCreateMutex();
-SemaphoreHandle_t mLeftTime = xSemaphoreCreateMutex();
+SemaphoreHandle_t mElapsedTime; //xSemaphoreCreateMutex();
+SemaphoreHandle_t mLeftTime; //xSemaphoreCreateMutex();
 
 hw_timer_t *myTimer = NULL;
 
@@ -191,7 +191,8 @@ void tfIMU(void *params)
         {
           msg = GyroMessageType::CYCLE_FLIPPED_INV;
         }
-        xQueueSend(qOrientationChange, (void *)new GyroMessage{.msg = msg}, 0);
+        GyroMessage g = GyroMessage {.msg = msg};
+        xQueueSend(qOrientationChange, (void *)&g, 0);
       }
       break;
     }
@@ -201,7 +202,7 @@ void tfIMU(void *params)
 
 void tfTimer(void *params)
 {
-  GyroMessage *messageEvent;
+  GyroMessage messageEvent;
   while (true)
   {
     AppState state = getSystemState();
@@ -210,7 +211,7 @@ void tfTimer(void *params)
     {
       // reset timer
 
-      switch (messageEvent->msg)
+      switch (messageEvent.msg)
       {
       case CYCLE_FLIPPED_NORMAL:
         timeLeft = minutes.normal;
@@ -235,7 +236,6 @@ void tfTimer(void *params)
 
       xSemaphoreTake(mElapsedTime, portMAX_DELAY);
       timeElapsed = 0;
-      delete messageEvent;
     };
     switch (state)
     {
@@ -296,9 +296,12 @@ void tfNetwork(void *params)
 
 void setup()
 {
-  Serial.begin(112500);
+  Serial.begin(115200);
   setCpuFrequencyMhz(80); /// TODO: implement better power-saving methods.
   // get default minute mappings
+  initGlobalState();
+  mElapsedTime = xSemaphoreCreateMutex();
+  mLeftTime = xSemaphoreCreateMutex();
   preferences.begin("config", false);
   minutes = OrientationMinuteMappings{
       .normal = preferences.getInt("normal", 5),
@@ -310,9 +313,9 @@ void setup()
   // end default minute mappings
   qOrientationChange = xQueueCreate(1000, sizeof(GyroMessageType));
 
-  xTaskCreate(tfDisplay, "DisplayTask", 1000, NULL, 3, &tDisplay);
-  xTaskCreate(tfIMU, "IMUTask", 1000, NULL, 2, &tIMU);
-  xTaskCreate(tfNetwork, "NetworkTask", 1000, NULL, 4, &tNetwork);
+  // xTaskCreate(tfDisplay, "DisplayTask", 1000, NULL, 3, &tDisplay);
+  // xTaskCreate(tfIMU, "IMUTask", 1000, NULL, 2, &tIMU);
+  // xTaskCreate(tfNetwork, "NetworkTask", 1000, NULL, 4, &tNetwork);
   xTaskCreate(tfTimer, "TimerTask", 1000, NULL, 1, &tTimer);
 }
 void loop()

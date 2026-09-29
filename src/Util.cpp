@@ -4,7 +4,9 @@
 
 volatile AppState globalState = AppState::INIT;
 SemaphoreHandle_t mGlobalState;
-
+void initGlobalState() {
+    mGlobalState = xSemaphoreCreateMutex();
+}
 AppState getSystemState(void) {
     AppState state;
     if (xSemaphoreTake(mGlobalState, portMAX_DELAY) == pdTRUE) {

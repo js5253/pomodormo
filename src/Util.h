@@ -8,6 +8,7 @@ enum AppState
   FINISHED
 };
 // #include <concepts>
+void initGlobalState(void);
 AppState getSystemState(void);
 void setSystemState(AppState state);
 // enable this when we make this use C++ more
