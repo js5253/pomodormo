@@ -1,6 +1,6 @@
 #include <freertos/FreeRTOS.h>
 #include <Arduino.h>
-#include "Util.h"
+#include "Util.hpp"
 
 volatile AppState globalState = AppState::INIT;
 SemaphoreHandle_t mGlobalState;

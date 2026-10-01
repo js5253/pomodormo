@@ -12,7 +12,7 @@
 #include <LittleFS.h>
 #include <driver/i2s.h>
 
-#include "Util.h"
+#include "Util.hpp"
 #include "IMUTask.hpp"
 #include "DisplayTask.hpp"
 #include "TimerTask.hpp"
@@ -37,7 +37,7 @@ void setup()
 
   mElapsedTime = xSemaphoreCreateMutex();
   mLeftTime = xSemaphoreCreateMutex();
-
+  mMinutes = xSemaphoreCreateMutex();
   preferences.begin("config", false);
   minutes = OrientationMinuteMappings{
       .normal = preferences.getInt("normal", 5),

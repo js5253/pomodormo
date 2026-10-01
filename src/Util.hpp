@@ -1,6 +1,6 @@
-
-
 #pragma once
+#include <Arduino.h>
+#include <freertos/FreeRTOS.h>
 
 enum AppState
 {
@@ -27,7 +27,7 @@ protected:
 
 SemaphoreHandle_t mElapsedTime; // xSemaphoreCreateMutex();
 SemaphoreHandle_t mLeftTime;    // xSemaphoreCreateMutex();
-
+SemaphoreHandle_t mMinutes;
 volatile int timeElapsed = 0;
 volatile int timeLeft = 0;
 

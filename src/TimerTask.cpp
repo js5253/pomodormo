@@ -1,15 +1,16 @@
 #include "Arduino.h"
-#include "Util.h"
 #include <freertos/FreeRTOS.h>
 #include <driver/timer.h>
+
+#include "Util.hpp"
 
 class TimerTask : FreeRTOSTask
 {
 public:
-    void setup()
+    void setup() override
     {
     }
-    void loop(void *params)
+    void loop(void *params) override
     {
         GyroMessage messageEvent;
         while (true)

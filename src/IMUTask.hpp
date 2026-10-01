@@ -1,7 +1,10 @@
 #pragma once
 
-#include "Util.h"
+#include "Util.hpp"
 
 class IMUTask : FreeRTOSTask {
-    
+    public:
+    void setup() override;
+    void loop(void* params) override;
+    IMUTask* getInstance();
 };

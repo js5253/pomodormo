@@ -1,4 +1,4 @@
-#include "Util.h"
+#include "Util.hpp"
 #include "LittleFS.h"
 #include "WiFi.h"
 #include "AsyncTCP.h"
@@ -11,7 +11,7 @@ class NetworkTask : FreeRTOSTask
 {
 public:
     AsyncWebServer server;
-    void setup()
+    void setup() override
     {
         server = AsyncWebServer(80);
         LittleFS.begin(true);
@@ -21,7 +21,7 @@ public:
         server.serveStatic("/page.htm", LittleFS, "/www/index.html").setDefaultFile("/www/index.html");
         server.begin();
     }
-    void loop()
+    void loop(void* params) override
     {
     vTaskDelay(pdMS_TO_TICKS(100));
     }

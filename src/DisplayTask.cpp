@@ -1,9 +1,9 @@
-#include "Util.h"
 #include <Wire.h>
 #include <Audio.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <LittleFS.h>
+#include "Util.hpp"
 
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
@@ -34,7 +34,7 @@ public:
         return _singleton;
     }
   
-    void setup()
+    void setup() override
     {
         this->display = Adafruit_SSD1306(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
@@ -48,7 +48,7 @@ public:
         audio.connecttoFS(LittleFS, "/alarm.wav");
         int prevDisplayTime;
     };
-    void loop(void* params)
+    void loop(void* params) override
     {
         AppState state = getSystemState();
         switch (state)

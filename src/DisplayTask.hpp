@@ -1,11 +1,12 @@
 #pragma once
-#include "Util.h"
+
+#include "Util.hpp"
 class DisplayTask : FreeRTOSTask {
     public:
-    void setup();
-    void loop(void* params);
-    FreeRTOSTask* getInstance();
+    void setup() override;
+    void loop(void* params) override;
+    DisplayTask* getInstance();
 
     protected:
-    FreeRTOSTask* _singleton;
+    DisplayTask* _singleton;
 };

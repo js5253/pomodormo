@@ -1,20 +1,19 @@
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 #include <freertos/FreeRTOS.h>
-
-#include "Util.h"
+#include "Util.hpp"
 
 class IMUTask : FreeRTOSTask
 {
     public:
-    void setup()
+    void setup() override
     {
         ESP_ERROR_CHECK(_mpu.begin());
         _mpu.setGyroRange(MPU6050_RANGE_1000_DEG);
         _mpu.setAccelerometerStandby(true, true, true);
         _mpu.setTemperatureStandby(true);
     }
-    void loop()
+    void loop(void* params) override
     {
         sensors_event_t* accel;
         sensors_event_t* gyro;
